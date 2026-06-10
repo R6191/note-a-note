@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import {
   PanResponder,
   ScrollView,
@@ -8,25 +8,21 @@ import {
   View,
 } from "react-native";
 import { playNote, playSequence, stopSequencer } from "../../audio/AudioEngine";
+import { ROOT_NOTES } from "../../audio/chords";
+import { generateId } from "../../utils/generateId";
 import { Note, PianoRollBlockData } from "../../types";
 
-// C3=48 to C5=72, that's 25 notes
 const MIN_MIDI = 48; // C3
 const MAX_MIDI = 72; // C5
 const TOTAL_NOTES = MAX_MIDI - MIN_MIDI + 1;
 
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const isBlack = (midi: number) => [1, 3, 6, 8, 10].includes(midi % 12);
-const noteName = (midi: number) => NOTE_NAMES[midi % 12] + Math.floor(midi / 12 - 1);
+const noteName = (midi: number) => ROOT_NOTES[midi % 12] + Math.floor(midi / 12 - 1);
 
 const ROW_HEIGHT = 28;
 const BEAT_WIDTH = 60;
 const KEY_WIDTH = 44;
 const TOTAL_BEATS = 16;
-
-function generateId() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
 
 interface Props {
   data: PianoRollBlockData;
@@ -38,7 +34,6 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playBeat, setPlayBeat] = useState(0);
   const bpm = data.bpm;
-
   const notes = data.notes;
 
   const updateNotes = useCallback(
@@ -48,12 +43,10 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
 
   const handleKeyPress = (midi: number) => {
     playNote(midi, 300);
-    // Add a quarter note at the next empty beat
     const existingBeats = notes.filter((n) => n.pitch === midi).map((n) => n.beat);
     let beat = 0;
     while (existingBeats.includes(beat)) beat++;
-    const newNote: Note = { id: generateId(), pitch: midi, beat, duration: 1 };
-    updateNotes([...notes, newNote]);
+    updateNotes([...notes, { id: generateId(), pitch: midi, beat, duration: 1 }]);
   };
 
   const handleNoteDelete = (id: string) => {
@@ -105,7 +98,6 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={{ flexDirection: "row" }}>
-          {/* Piano keys */}
           <View style={styles.keysColumn}>
             {Array.from({ length: TOTAL_NOTES }, (_, i) => {
               const midi = MAX_MIDI - i;
@@ -124,10 +116,8 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
             })}
           </View>
 
-          {/* Roll grid */}
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={{ width: BEAT_WIDTH * TOTAL_BEATS, height: ROW_HEIGHT * TOTAL_NOTES }}>
-              {/* Grid lines */}
               {Array.from({ length: TOTAL_NOTES }, (_, i) => {
                 const midi = MAX_MIDI - i;
                 const black = isBlack(midi);
@@ -153,17 +143,10 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
                 />
               ))}
 
-              {/* Playhead */}
               {isPlaying && (
-                <View
-                  style={[
-                    styles.playhead,
-                    { left: playBeat * BEAT_WIDTH },
-                  ]}
-                />
+                <View style={[styles.playhead, { left: playBeat * BEAT_WIDTH }]} />
               )}
 
-              {/* Notes */}
               {notes.map((note) => {
                 const row = MAX_MIDI - note.pitch;
                 if (row < 0 || row >= TOTAL_NOTES) return null;
@@ -189,7 +172,7 @@ export default function PianoRollBlock({ data, onChange, onDelete }: Props) {
   );
 }
 
-function NoteBar({
+const NoteBar = memo(function NoteBar({
   note,
   top,
   onDelete,
@@ -202,19 +185,24 @@ function NoteBar({
 }) {
   const startX = useRef(0);
   const startDuration = useRef(note.duration);
+  // Keep latest callbacks in refs so the PanResponder (created once) never goes stale
+  const onDurationChangeRef = useRef(onDurationChange);
+  onDurationChangeRef.current = onDurationChange;
+  const noteDurationRef = useRef(note.duration);
+  noteDurationRef.current = note.duration;
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
         startX.current = e.nativeEvent.pageX;
-        startDuration.current = note.duration;
+        startDuration.current = noteDurationRef.current;
       },
       onPanResponderMove: (e) => {
         const dx = e.nativeEvent.pageX - startX.current;
         const deltaBeat = dx / BEAT_WIDTH;
         const newDur = Math.max(0.25, Math.round((startDuration.current + deltaBeat) * 4) / 4);
-        onDurationChange(newDur);
+        onDurationChangeRef.current(newDur);
       },
     })
   ).current;
@@ -238,7 +226,7 @@ function NoteBar({
       <View {...panResponder.panHandlers} style={styles.noteHandle} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

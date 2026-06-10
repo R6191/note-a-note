@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useLayoutEffect } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,12 +12,12 @@ import ChordBlock from "../../src/components/blocks/ChordBlock";
 import PianoRollBlock from "../../src/components/blocks/PianoRollBlock";
 import TextBlock from "../../src/components/blocks/TextBlock";
 import { useStore } from "../../src/store/useStore";
-import { Block, BlockData, ChordBlockData, PianoRollBlockData, TextBlockData } from "../../src/types";
+import { Block, BlockData } from "../../src/types";
 
 export default function MemoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
-  const { memos, updateMemoTitle, addBlock, updateBlock, deleteBlock, reorderBlocks } = useStore();
+  const { memos, updateMemoTitle, addBlock, updateBlock, deleteBlock } = useStore();
   const memo = memos.find((m) => m.id === id);
 
   useLayoutEffect(() => {
@@ -46,34 +45,34 @@ export default function MemoScreen() {
   };
 
   const renderBlock = (block: Block) => {
-    const key = block.id;
-    if (block.data.type === "text") {
+    const { id: blockId, data } = block;
+    if (data.type === "text") {
       return (
         <TextBlock
-          key={key}
-          data={block.data as TextBlockData}
-          onChange={(d) => updateBlock(memo.id, block.id, d)}
-          onDelete={() => deleteBlock(memo.id, block.id)}
+          key={blockId}
+          data={data}
+          onChange={(d) => updateBlock(memo.id, blockId, d)}
+          onDelete={() => deleteBlock(memo.id, blockId)}
         />
       );
     }
-    if (block.data.type === "piano_roll") {
+    if (data.type === "piano_roll") {
       return (
         <PianoRollBlock
-          key={key}
-          data={block.data as PianoRollBlockData}
-          onChange={(d) => updateBlock(memo.id, block.id, d)}
-          onDelete={() => deleteBlock(memo.id, block.id)}
+          key={blockId}
+          data={data}
+          onChange={(d) => updateBlock(memo.id, blockId, d)}
+          onDelete={() => deleteBlock(memo.id, blockId)}
         />
       );
     }
-    if (block.data.type === "chord") {
+    if (data.type === "chord") {
       return (
         <ChordBlock
-          key={key}
-          data={block.data as ChordBlockData}
-          onChange={(d) => updateBlock(memo.id, block.id, d)}
-          onDelete={() => deleteBlock(memo.id, block.id)}
+          key={blockId}
+          data={data}
+          onChange={(d) => updateBlock(memo.id, blockId, d)}
+          onDelete={() => deleteBlock(memo.id, blockId)}
         />
       );
     }

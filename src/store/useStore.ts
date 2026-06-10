@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import { Memo, Block, BlockData } from "../types";
 import { loadMemos, saveMemos } from "../storage/storage";
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+import { generateId } from "../utils/generateId";
 
 interface StoreState {
   memos: Memo[];

@@ -13,6 +13,11 @@ export async function loadMemos(): Promise<Memo[]> {
   }
 }
 
-export async function saveMemos(memos: Memo[]): Promise<void> {
-  await AsyncStorage.setItem(MEMOS_KEY, JSON.stringify(memos));
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function saveMemos(memos: Memo[]): void {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    AsyncStorage.setItem(MEMOS_KEY, JSON.stringify(memos)).catch(console.error);
+  }, 400);
 }
