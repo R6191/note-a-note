@@ -9,6 +9,8 @@
 | 2.7. アーキテクチャ図・機能一覧作成 | ✅ 完了 | - |
 | 2.8. 動作確認チェックリスト作成 | ✅ 完了 | - |
 | 3. 実装 | ✅ 完了 | 2026-06-10 |
+| 3.5. コードレビュー | ✅ 完了 | 2026-06-11 |
+| 3.6. 実装済み機能一覧の更新 | ✅ 完了 | 2026-06-11 |
 
 ## 決定事項
 
@@ -41,5 +43,27 @@
 - TypeScript型チェック通過確認
 - git commit 完了
 
-## 未実装（次フェーズ以降で対応）
+### 2026-06-11
+- フェーズ3.5 コードレビュー完了・修正適用
+  - generateId を utils に抽出、NOTE_NAMES 重複解消
+  - NoteBar PanResponder staleクロージャ修正（ref パターン）
+  - saveMemos デバウンス（400ms）追加
+  - WAVバッファキャッシュ、Sound.unloadAsync エラーハンドリング
+  - 不要な型キャスト・unused import 削除
+- フェーズ3.6 実装済み機能一覧の確認・更新完了
+
+## 実装済み機能（コード確認済み）
+
+| 機能 | ファイル | 状態 |
+|------|---------|------|
+| メモ新規作成・一覧・検索・削除 | `app/index.tsx`, `src/store/useStore.ts` | ✅ |
+| メモタイトル編集 | `app/memo/[id].tsx` | ✅ |
+| テキストブロック（書式・箇条書き・チェックボックス・揃え） | `src/components/blocks/TextBlock.tsx` | ✅ |
+| ピアノロール（C3〜C5・ドラッグ音長・再生ヘッド・BPM） | `src/components/blocks/PianoRollBlock.tsx` | ✅ |
+| コードブロック（タップ再生・2段階ピッカー・試し聴き） | `src/components/blocks/ChordBlock.tsx` | ✅ |
+| WAVシンセ音源（キャッシュ付き）・BPMシーケンサー | `src/audio/AudioEngine.ts` | ✅ |
+| AsyncStorage 永続化（デバウンス保存） | `src/storage/storage.ts` | ✅ |
+| ブロックのドラッグ&ドロップ並び替え | 未実装 | ⬜ |
+
+## 未実装
 - ブロックのドラッグ&ドロップ並び替え（react-native-draggable-flatlistの追加が必要）
