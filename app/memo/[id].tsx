@@ -34,11 +34,9 @@ export default function MemoScreen() {
     );
   }
 
-  const handleAddBlock = (type: "text" | "piano_roll" | "chord") => {
+  const handleAddBlock = (type: "piano_roll" | "chord") => {
     const data: BlockData =
-      type === "text"
-        ? { type: "text", style: "body", align: "left", spans: [{ text: "" }] }
-        : type === "piano_roll"
+      type === "piano_roll"
         ? { type: "piano_roll", notes: [], bpm: 120 }
         : { type: "chord", root: "C", chordType: "major" };
     addBlock(memo.id, data);
@@ -96,20 +94,16 @@ export default function MemoScreen() {
   );
 }
 
-function BlockAddRow({ onAdd }: { onAdd: (type: "text" | "piano_roll" | "chord") => void }) {
+function BlockAddRow({ onAdd }: { onAdd: (type: "piano_roll" | "chord") => void }) {
   return (
     <View style={styles.addRow}>
-      <TouchableOpacity onPress={() => onAdd("text")} style={styles.addBtn}>
-        <Text style={styles.addBtnIcon}>T</Text>
-        <Text style={styles.addBtnLabel}>テキスト</Text>
-      </TouchableOpacity>
       <TouchableOpacity onPress={() => onAdd("piano_roll")} style={styles.addBtn}>
         <Text style={styles.addBtnIcon}>♪</Text>
-        <Text style={styles.addBtnLabel}>譜面</Text>
+        <Text style={styles.addBtnLabel}>譜面を追加</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => onAdd("chord")} style={styles.addBtn}>
         <Text style={styles.addBtnIcon}>♬</Text>
-        <Text style={styles.addBtnLabel}>コード</Text>
+        <Text style={styles.addBtnLabel}>コードを追加</Text>
       </TouchableOpacity>
     </View>
   );

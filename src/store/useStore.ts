@@ -26,10 +26,14 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   createMemo: () => {
+    const defaultTextBlock: Block = {
+      id: generateId(),
+      data: { type: "text", style: "body", align: "left", spans: [{ text: "" }] },
+    };
     const memo: Memo = {
       id: generateId(),
       title: "",
-      blocks: [],
+      blocks: [defaultTextBlock],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
