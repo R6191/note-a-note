@@ -29,9 +29,9 @@ export default function MemoListScreen() {
   const filtered = memos.filter((m) => {
     if (!query) return true;
     const q = query.toLowerCase();
-    return (
-      m.title.toLowerCase().includes(q) ||
-      m.content.toLowerCase().includes(q)
+    if (m.title.toLowerCase().includes(q)) return true;
+    return m.blocks.some(
+      (b) => b.data.type === "text" && b.data.content.toLowerCase().includes(q)
     );
   });
 
@@ -56,11 +56,16 @@ export default function MemoListScreen() {
       <Text style={styles.itemTitle} numberOfLines={1}>
         {item.title || "無題"}
       </Text>
-      {!!item.content && (
-        <Text style={styles.itemPreview} numberOfLines={2}>
-          {item.content}
-        </Text>
-      )}
+      {(() => {
+        const preview = item.blocks
+          .filter((b) => b.data.type === "text" && b.data.content)
+          .map((b) => (b.data as any).content)
+          .join(" ")
+          .trim();
+        return preview ? (
+          <Text style={styles.itemPreview} numberOfLines={2}>{preview}</Text>
+        ) : null;
+      })()}
       <Text style={styles.itemDate}>{formatDate(item.updatedAt)}</Text>
     </TouchableOpacity>
   );

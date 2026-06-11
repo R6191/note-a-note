@@ -1,28 +1,51 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import React, { useLayoutEffect, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   InputAccessoryView,
   KeyboardAvoidingView,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TextInputKeyPressEventData,
   TouchableOpacity,
   View,
 } from "react-native";
 import ChordBlock from "../../src/components/blocks/ChordBlock";
 import PianoRollBlock from "../../src/components/blocks/PianoRollBlock";
 import { useStore } from "../../src/store/useStore";
-import { Block, BlockData, ContentFormatting, DEFAULT_FORMATTING, TextAlign, TextStyle, ListType } from "../../src/types";
+import {
+  Block,
+  BlockData,
+  ContentFormatting,
+  DEFAULT_FORMATTING,
+  TextAlign,
+  TextStyle,
+  ListType,
+} from "../../src/types";
 
 const KEYBOARD_TOOLBAR_ID = "memo-keyboard-toolbar";
 
 export default function MemoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
-  const { memos, updateMemoTitle, updateMemoContent, updateMemoFormatting, addBlock, updateBlock, deleteBlock } = useStore();
+  const {
+    memos,
+    updateMemoTitle,
+    updateTextContent,
+    updateTextFormatting,
+    updateBlock,
+    deleteBlock,
+    insertBlockAfter,
+    backspaceDeletePrev,
+  } = useStore();
+
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [showFormatBar, setShowFormatBar] = useState(false);
+  const inputRefs = useRef<Map<string, TextInput>>(new Map());
+
   const memo = memos.find((m) => m.id === id);
 
   useLayoutEffect(() => {
@@ -37,31 +60,95 @@ export default function MemoScreen() {
     );
   }
 
-  const fmt = memo.formatting ?? DEFAULT_FORMATTING;
+  const focusedBlock = memo.blocks.find((b) => b.id === focusedBlockId);
+  const focusedFmt =
+    focusedBlock?.data.type === "text"
+      ? focusedBlock.data.formatting
+      : DEFAULT_FORMATTING;
 
-  const handleAddBlock = (type: "piano_roll" | "chord") => {
+  const handleInsertBlock = (type: "piano_roll" | "chord") => {
+    const afterId =
+      focusedBlockId ??
+      memo.blocks.filter((b) => b.data.type === "text").at(-1)?.id ??
+      memo.blocks.at(-1)?.id;
+    if (!afterId) return;
+
     const data: BlockData =
       type === "piano_roll"
         ? { type: "piano_roll", notes: [], bpm: 120 }
         : { type: "chord", root: "C", chordType: "major" };
-    addBlock(memo.id, data);
+
+    const { newTextBlockId } = insertBlockAfter(memo.id, afterId, data);
+
+    // 新しいテキストブロックにフォーカス
+    setTimeout(() => {
+      inputRefs.current.get(newTextBlockId)?.focus();
+    }, 100);
   };
 
-  const updateFmt = (patch: Partial<ContentFormatting>) => {
-    updateMemoFormatting(memo.id, { ...fmt, ...patch });
+  const handleBackspace = (
+    blockId: string,
+    e: NativeSyntheticEvent<TextInputKeyPressEventData>
+  ) => {
+    if (e.nativeEvent.key !== "Backspace") return;
+    const block = memo.blocks.find((b) => b.id === blockId);
+    if (!block || block.data.type !== "text" || block.data.content !== "") return;
+
+    const result = backspaceDeletePrev(memo.id, blockId);
+    if (!result) return;
+
+    const { focusBlockId, focusOffset } = result;
+    setTimeout(() => {
+      const ref = inputRefs.current.get(focusBlockId);
+      ref?.focus();
+      // カーソルを結合点に移動
+      if (focusOffset > 0) {
+        ref?.setNativeProps({ selection: { start: focusOffset, end: focusOffset } });
+      }
+    }, 50);
   };
 
-  const contentStyle = [
-    styles.contentInput,
-    fmt.style === "title" && styles.fmtTitle,
-    fmt.style === "heading" && styles.fmtHeading,
-    fmt.bold && styles.fmtBold,
-    fmt.underline && styles.fmtUnderline,
-    { textAlign: fmt.align } as const,
-  ];
+  const handleUpdateFmt = (blockId: string, patch: Partial<ContentFormatting>) => {
+    const block = memo.blocks.find((b) => b.id === blockId);
+    if (!block || block.data.type !== "text") return;
+    updateTextFormatting(memo.id, blockId, { ...block.data.formatting, ...patch });
+  };
 
   const renderBlock = (block: Block) => {
     const { id: blockId, data } = block;
+
+    if (data.type === "text") {
+      const fmt = data.formatting;
+      const contentStyle = [
+        styles.textInput,
+        fmt.style === "title" && styles.fmtTitle,
+        fmt.style === "heading" && styles.fmtHeading,
+        fmt.bold && styles.fmtBold,
+        fmt.underline && styles.fmtUnderline,
+        { textAlign: fmt.align } as const,
+      ];
+      return (
+        <TextInput
+          key={blockId}
+          ref={(r) => {
+            if (r) inputRefs.current.set(blockId, r);
+            else inputRefs.current.delete(blockId);
+          }}
+          style={contentStyle}
+          value={data.content}
+          onChangeText={(t) => updateTextContent(memo.id, blockId, t)}
+          onFocus={() => setFocusedBlockId(blockId)}
+          onKeyPress={(e) => handleBackspace(blockId, e)}
+          placeholder="テキストを入力..."
+          placeholderTextColor="#444"
+          multiline
+          textAlignVertical="top"
+          inputAccessoryViewID={KEYBOARD_TOOLBAR_ID}
+          blurOnSubmit={false}
+        />
+      );
+    }
+
     if (data.type === "piano_roll") {
       return (
         <PianoRollBlock
@@ -72,6 +159,7 @@ export default function MemoScreen() {
         />
       );
     }
+
     if (data.type === "chord") {
       return (
         <ChordBlock
@@ -82,16 +170,20 @@ export default function MemoScreen() {
         />
       );
     }
+
     return null;
   };
 
   const toolbar = (
     <View>
-      {showFormatBar && (
-        <FormatBar fmt={fmt} onChange={updateFmt} />
+      {showFormatBar && focusedBlockId && (
+        <FormatBar
+          fmt={focusedFmt}
+          onChange={(patch) => focusedBlockId && handleUpdateFmt(focusedBlockId, patch)}
+        />
       )}
       <KeyboardToolbar
-        onAdd={handleAddBlock}
+        onAdd={handleInsertBlock}
         showFormatBar={showFormatBar}
         onToggleFormat={() => setShowFormatBar((v) => !v)}
       />
@@ -111,16 +203,6 @@ export default function MemoScreen() {
           placeholder="タイトル..."
           placeholderTextColor="#555"
         />
-        <TextInput
-          style={contentStyle}
-          value={memo.content}
-          onChangeText={(t) => updateMemoContent(memo.id, t)}
-          placeholder="メモを入力..."
-          placeholderTextColor="#555"
-          multiline
-          textAlignVertical="top"
-          inputAccessoryViewID={KEYBOARD_TOOLBAR_ID}
-        />
         {memo.blocks.map(renderBlock)}
       </ScrollView>
 
@@ -136,26 +218,28 @@ export default function MemoScreen() {
 }
 
 // ── フォーマットバー ──────────────────────────────────
-function FormatBar({ fmt, onChange }: { fmt: ContentFormatting; onChange: (p: Partial<ContentFormatting>) => void }) {
+function FormatBar({
+  fmt,
+  onChange,
+}: {
+  fmt: ContentFormatting;
+  onChange: (p: Partial<ContentFormatting>) => void;
+}) {
   return (
     <View style={styles.formatBar}>
-      {/* スタイル */}
       <FmtBtn label="本文" active={fmt.style === "body"} onPress={() => onChange({ style: "body" as TextStyle })} />
       <FmtBtn label="見出し" active={fmt.style === "heading"} onPress={() => onChange({ style: "heading" as TextStyle })} />
       <FmtBtn label="タイトル" active={fmt.style === "title"} onPress={() => onChange({ style: "title" as TextStyle })} />
       <Sep />
-      {/* 太字・下線 */}
       <FmtBtn label="B" active={fmt.bold} bold onPress={() => onChange({ bold: !fmt.bold })} />
       <FmtBtn label="U" active={fmt.underline} underline onPress={() => onChange({ underline: !fmt.underline })} />
       <Sep />
-      {/* 揃え */}
       <FmtBtn label="←" active={fmt.align === "left"} onPress={() => onChange({ align: "left" as TextAlign })} />
       <FmtBtn label="↔" active={fmt.align === "center"} onPress={() => onChange({ align: "center" as TextAlign })} />
       <FmtBtn label="→" active={fmt.align === "right"} onPress={() => onChange({ align: "right" as TextAlign })} />
       <Sep />
-      {/* リスト */}
-      <FmtBtn label="•" active={fmt.listType === "bullet"} onPress={() => onChange({ listType: fmt.listType === "bullet" ? undefined : "bullet" as ListType })} />
-      <FmtBtn label="☑" active={fmt.listType === "checkbox"} onPress={() => onChange({ listType: fmt.listType === "checkbox" ? undefined : "checkbox" as ListType })} />
+      <FmtBtn label="•" active={fmt.listType === "bullet"} onPress={() => onChange({ listType: fmt.listType === "bullet" ? undefined : ("bullet" as ListType) })} />
+      <FmtBtn label="☑" active={fmt.listType === "checkbox"} onPress={() => onChange({ listType: fmt.listType === "checkbox" ? undefined : ("checkbox" as ListType) })} />
     </View>
   );
 }
@@ -216,19 +300,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#3a3a5e",
   },
-  contentInput: {
+  textInput: {
     fontSize: 15,
     color: "#e0e0ff",
     lineHeight: 24,
-    minHeight: 160,
-    paddingVertical: 8,
-    marginBottom: 12,
+    minHeight: 40,
+    paddingVertical: 6,
   },
   fmtTitle: { fontSize: 24, fontWeight: "bold" as const },
   fmtHeading: { fontSize: 19, fontWeight: "600" as const },
   fmtBold: { fontWeight: "bold" as const },
   fmtUnderline: { textDecorationLine: "underline" as const },
-  // フォーマットバー
   formatBar: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -240,16 +322,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     gap: 2,
   },
-  fmtBtn: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
+  fmtBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6 },
   fmtBtnActive: { backgroundColor: "#6655ee" },
   fmtBtnText: { color: "#aaa", fontSize: 13 },
   fmtBtnTextActive: { color: "#fff" },
   sep: { width: 1, height: 20, backgroundColor: "#3a3a5e", marginHorizontal: 3 },
-  // キーボードツールバー
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
@@ -271,10 +348,5 @@ const styles = StyleSheet.create({
   toolbarBtnIcon: { fontSize: 18, color: "#9988cc" },
   toolbarBtnIconActive: { color: "#c0b0ff" },
   toolbarBtnLabel: { fontSize: 14, color: "#c0b0ff" },
-  toolbarDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: "#3a3a5e",
-    marginHorizontal: 4,
-  },
+  toolbarDivider: { width: 1, height: 24, backgroundColor: "#3a3a5e", marginHorizontal: 4 },
 });

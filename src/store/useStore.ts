@@ -3,18 +3,30 @@ import { Memo, Block, BlockData, ContentFormatting, DEFAULT_FORMATTING } from ".
 import { loadMemos, saveMemos } from "../storage/storage";
 import { generateId } from "../utils/generateId";
 
+function makeTextBlock(content = ""): Block {
+  return {
+    id: generateId(),
+    data: { type: "text", content, formatting: { ...DEFAULT_FORMATTING } },
+  };
+}
+
 interface StoreState {
   memos: Memo[];
   loaded: boolean;
   hydrate: () => Promise<void>;
   createMemo: () => Memo;
   updateMemoTitle: (memoId: string, title: string) => void;
-  updateMemoContent: (memoId: string, content: string) => void;
-  updateMemoFormatting: (memoId: string, formatting: ContentFormatting) => void;
   deleteMemo: (memoId: string) => void;
-  addBlock: (memoId: string, data: BlockData) => Block;
+  // ブロック操作
   updateBlock: (memoId: string, blockId: string, data: BlockData) => void;
   deleteBlock: (memoId: string, blockId: string) => void;
+  // テキストブロック専用
+  updateTextContent: (memoId: string, blockId: string, content: string) => void;
+  updateTextFormatting: (memoId: string, blockId: string, formatting: ContentFormatting) => void;
+  // 挿入（afterBlockId の後ろに新ブロック＋空テキストブロックを挿入）
+  insertBlockAfter: (memoId: string, afterBlockId: string, data: BlockData) => { newBlockId: string; newTextBlockId: string };
+  // バックスペース削除：前ブロックがテキストなら結合、そうでなければ前ブロックを削除して自分は残す
+  backspaceDeletePrev: (memoId: string, blockId: string) => { focusBlockId: string; focusOffset: number } | null;
   reorderBlocks: (memoId: string, blocks: Block[]) => void;
 }
 
@@ -24,16 +36,23 @@ export const useStore = create<StoreState>((set, get) => ({
 
   hydrate: async () => {
     const memos = await loadMemos();
-    set({ memos, loaded: true });
+    // 旧データ互換: content/formatting フィールドをブロックに移行
+    const migrated = memos.map((m: any) => {
+      if (m.content !== undefined) {
+        const textBlock = makeTextBlock(m.content ?? "");
+        const { content, formatting, ...rest } = m;
+        return { ...rest, blocks: [textBlock, ...(m.blocks ?? [])] };
+      }
+      return m;
+    });
+    set({ memos: migrated, loaded: true });
   },
 
   createMemo: () => {
     const memo: Memo = {
       id: generateId(),
       title: "",
-      content: "",
-      formatting: { ...DEFAULT_FORMATTING },
-      blocks: [],
+      blocks: [makeTextBlock()],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -51,38 +70,10 @@ export const useStore = create<StoreState>((set, get) => ({
     saveMemos(memos);
   },
 
-  updateMemoContent: (memoId, content) => {
-    const memos = get().memos.map((m) =>
-      m.id === memoId ? { ...m, content, updatedAt: Date.now() } : m
-    );
-    set({ memos });
-    saveMemos(memos);
-  },
-
-  updateMemoFormatting: (memoId, formatting) => {
-    const memos = get().memos.map((m) =>
-      m.id === memoId ? { ...m, formatting, updatedAt: Date.now() } : m
-    );
-    set({ memos });
-    saveMemos(memos);
-  },
-
   deleteMemo: (memoId) => {
     const memos = get().memos.filter((m) => m.id !== memoId);
     set({ memos });
     saveMemos(memos);
-  },
-
-  addBlock: (memoId, data) => {
-    const block: Block = { id: generateId(), data };
-    const memos = get().memos.map((m) =>
-      m.id === memoId
-        ? { ...m, blocks: [...m.blocks, block], updatedAt: Date.now() }
-        : m
-    );
-    set({ memos });
-    saveMemos(memos);
-    return block;
   },
 
   updateBlock: (memoId, blockId, data) => {
@@ -98,17 +89,114 @@ export const useStore = create<StoreState>((set, get) => ({
     saveMemos(memos);
   },
 
-  deleteBlock: (memoId, blockId) => {
+  updateTextContent: (memoId, blockId, content) => {
     const memos = get().memos.map((m) => {
       if (m.id !== memoId) return m;
       return {
         ...m,
-        blocks: m.blocks.filter((b) => b.id !== blockId),
+        blocks: m.blocks.map((b) =>
+          b.id === blockId && b.data.type === "text"
+            ? { ...b, data: { ...b.data, content } }
+            : b
+        ),
         updatedAt: Date.now(),
       };
     });
     set({ memos });
     saveMemos(memos);
+  },
+
+  updateTextFormatting: (memoId, blockId, formatting) => {
+    const memos = get().memos.map((m) => {
+      if (m.id !== memoId) return m;
+      return {
+        ...m,
+        blocks: m.blocks.map((b) =>
+          b.id === blockId && b.data.type === "text"
+            ? { ...b, data: { ...b.data, formatting } }
+            : b
+        ),
+        updatedAt: Date.now(),
+      };
+    });
+    set({ memos });
+    saveMemos(memos);
+  },
+
+  deleteBlock: (memoId, blockId) => {
+    const memos = get().memos.map((m) => {
+      if (m.id !== memoId) return m;
+      const blocks = m.blocks.filter((b) => b.id !== blockId);
+      // テキストブロックが1つもなくなったら末尾に追加
+      const hasText = blocks.some((b) => b.data.type === "text");
+      return {
+        ...m,
+        blocks: hasText ? blocks : [...blocks, makeTextBlock()],
+        updatedAt: Date.now(),
+      };
+    });
+    set({ memos });
+    saveMemos(memos);
+  },
+
+  insertBlockAfter: (memoId, afterBlockId, data) => {
+    const newBlockId = generateId();
+    const newTextBlockId = generateId();
+    const newBlock: Block = { id: newBlockId, data };
+    const newTextBlock: Block = makeTextBlock();
+    const textBlockWithId: Block = { ...newTextBlock, id: newTextBlockId };
+
+    const memos = get().memos.map((m) => {
+      if (m.id !== memoId) return m;
+      const idx = m.blocks.findIndex((b) => b.id === afterBlockId);
+      const blocks = [...m.blocks];
+      blocks.splice(idx + 1, 0, newBlock, textBlockWithId);
+      return { ...m, blocks, updatedAt: Date.now() };
+    });
+    set({ memos });
+    saveMemos(memos);
+    return { newBlockId, newTextBlockId };
+  },
+
+  backspaceDeletePrev: (memoId, blockId) => {
+    const memo = get().memos.find((m) => m.id === memoId);
+    if (!memo) return null;
+
+    const idx = memo.blocks.findIndex((b) => b.id === blockId);
+    if (idx <= 0) return null;
+
+    const prevBlock = memo.blocks[idx - 1];
+    const curBlock = memo.blocks[idx];
+    if (curBlock.data.type !== "text") return null;
+
+    let newBlocks: Block[];
+    let focusBlockId: string;
+    let focusOffset = 0;
+
+    if (prevBlock.data.type === "text") {
+      // 前のテキストブロックと結合
+      const mergedContent = prevBlock.data.content + curBlock.data.content;
+      focusOffset = prevBlock.data.content.length;
+      focusBlockId = prevBlock.id;
+      newBlocks = memo.blocks
+        .map((b) =>
+          b.id === prevBlock.id
+            ? { ...b, data: { ...b.data, content: mergedContent } }
+            : b
+        )
+        .filter((b) => b.id !== blockId);
+    } else {
+      // 前の譜面/コードブロックを削除、自分は残す
+      focusBlockId = blockId;
+      newBlocks = memo.blocks.filter((b) => b.id !== prevBlock.id);
+    }
+
+    const memos = get().memos.map((m) =>
+      m.id === memoId ? { ...m, blocks: newBlocks, updatedAt: Date.now() } : m
+    );
+    set({ memos });
+    saveMemos(memos);
+    return { focusBlockId, focusOffset };
   },
 
   reorderBlocks: (memoId, blocks) => {
