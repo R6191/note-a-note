@@ -1,6 +1,9 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useLayoutEffect } from "react";
 import {
+  InputAccessoryView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +15,8 @@ import ChordBlock from "../../src/components/blocks/ChordBlock";
 import PianoRollBlock from "../../src/components/blocks/PianoRollBlock";
 import { useStore } from "../../src/store/useStore";
 import { Block, BlockData } from "../../src/types";
+
+const KEYBOARD_TOOLBAR_ID = "memo-keyboard-toolbar";
 
 export default function MemoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,7 +72,10 @@ export default function MemoScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <TextInput
           style={styles.titleInput}
@@ -75,6 +83,7 @@ export default function MemoScreen() {
           onChangeText={(t) => updateMemoTitle(memo.id, t)}
           placeholder="タイトル..."
           placeholderTextColor="#555"
+          // タイトル欄はツールバー不要なので inputAccessoryViewID を付けない
         />
         <TextInput
           style={styles.contentInput}
@@ -84,24 +93,37 @@ export default function MemoScreen() {
           placeholderTextColor="#555"
           multiline
           textAlignVertical="top"
+          inputAccessoryViewID={KEYBOARD_TOOLBAR_ID}
         />
         {memo.blocks.map(renderBlock)}
-        <BlockAddRow onAdd={handleAddBlock} />
       </ScrollView>
-    </View>
+
+      {/* iOS: キーボード上部ツールバー */}
+      {Platform.OS === "ios" && (
+        <InputAccessoryView nativeID={KEYBOARD_TOOLBAR_ID}>
+          <KeyboardToolbar onAdd={handleAddBlock} />
+        </InputAccessoryView>
+      )}
+
+      {/* Android: 画面下部に固定ツールバー（キーボード非表示時も表示） */}
+      {Platform.OS === "android" && (
+        <KeyboardToolbar onAdd={handleAddBlock} />
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
-function BlockAddRow({ onAdd }: { onAdd: (type: "piano_roll" | "chord") => void }) {
+function KeyboardToolbar({ onAdd }: { onAdd: (type: "piano_roll" | "chord") => void }) {
   return (
-    <View style={styles.addRow}>
-      <TouchableOpacity onPress={() => onAdd("piano_roll")} style={styles.addBtn}>
-        <Text style={styles.addBtnIcon}>♪</Text>
-        <Text style={styles.addBtnLabel}>譜面を追加</Text>
+    <View style={styles.toolbar}>
+      <TouchableOpacity onPress={() => onAdd("piano_roll")} style={styles.toolbarBtn}>
+        <Text style={styles.toolbarBtnIcon}>♪</Text>
+        <Text style={styles.toolbarBtnLabel}>譜面</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => onAdd("chord")} style={styles.addBtn}>
-        <Text style={styles.addBtnIcon}>♬</Text>
-        <Text style={styles.addBtnLabel}>コードを追加</Text>
+      <View style={styles.toolbarDivider} />
+      <TouchableOpacity onPress={() => onAdd("chord")} style={styles.toolbarBtn}>
+        <Text style={styles.toolbarBtnIcon}>♬</Text>
+        <Text style={styles.toolbarBtnLabel}>コード</Text>
       </TouchableOpacity>
     </View>
   );
@@ -109,7 +131,7 @@ function BlockAddRow({ onAdd }: { onAdd: (type: "piano_roll" | "chord") => void 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#1a1a2e" },
-  scroll: { padding: 14, paddingBottom: 80 },
+  scroll: { padding: 14, paddingBottom: 40 },
   titleInput: {
     fontSize: 22,
     fontWeight: "bold",
@@ -123,26 +145,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#e0e0ff",
     lineHeight: 24,
-    minHeight: 120,
+    minHeight: 160,
     paddingVertical: 8,
     marginBottom: 12,
   },
-  addRow: {
+  toolbar: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: "#2a2a4e",
-    borderRadius: 12,
-  },
-  addBtn: {
     alignItems: "center",
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: "#3a3a5e",
-    minWidth: 120,
+    backgroundColor: "#2a2a4e",
+    borderTopWidth: 1,
+    borderTopColor: "#3a3a5e",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
-  addBtnIcon: { fontSize: 22, color: "#9988cc" },
-  addBtnLabel: { fontSize: 12, color: "#aaa", marginTop: 4 },
+  toolbarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    gap: 6,
+  },
+  toolbarBtnIcon: { fontSize: 20, color: "#9988cc" },
+  toolbarBtnLabel: { fontSize: 14, color: "#c0b0ff" },
+  toolbarDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#3a3a5e",
+    marginHorizontal: 4,
+  },
 });
