@@ -81,6 +81,9 @@ export default function MemoScreen() {
 
     const { newTextBlockId } = insertBlockAfter(memo.id, afterId, data);
 
+    // 挿入直後にrefを更新（onFocus頼みにしない）
+    focusedBlockIdRef.current = newTextBlockId;
+
     // 新しいテキストブロックにフォーカス
     setTimeout(() => {
       inputRefs.current.get(newTextBlockId)?.focus();

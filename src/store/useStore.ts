@@ -174,8 +174,9 @@ export const useStore = create<StoreState>((set, get) => ({
     const memos = get().memos.map((m) => {
       if (m.id !== memoId) return m;
       const idx = m.blocks.findIndex((b) => b.id === afterBlockId);
+      const insertAt = idx === -1 ? m.blocks.length : idx + 1;
       const blocks = [...m.blocks];
-      blocks.splice(idx + 1, 0, newBlock, textBlockWithId);
+      blocks.splice(insertAt, 0, newBlock, textBlockWithId);
       return { ...m, blocks, updatedAt: Date.now() };
     });
     set({ memos });
