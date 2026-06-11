@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Memo, Block, BlockData } from "../types";
+import { Memo, Block, BlockData, ContentFormatting, DEFAULT_FORMATTING } from "../types";
 import { loadMemos, saveMemos } from "../storage/storage";
 import { generateId } from "../utils/generateId";
 
@@ -10,6 +10,7 @@ interface StoreState {
   createMemo: () => Memo;
   updateMemoTitle: (memoId: string, title: string) => void;
   updateMemoContent: (memoId: string, content: string) => void;
+  updateMemoFormatting: (memoId: string, formatting: ContentFormatting) => void;
   deleteMemo: (memoId: string) => void;
   addBlock: (memoId: string, data: BlockData) => Block;
   updateBlock: (memoId: string, blockId: string, data: BlockData) => void;
@@ -31,6 +32,7 @@ export const useStore = create<StoreState>((set, get) => ({
       id: generateId(),
       title: "",
       content: "",
+      formatting: { ...DEFAULT_FORMATTING },
       blocks: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -52,6 +54,14 @@ export const useStore = create<StoreState>((set, get) => ({
   updateMemoContent: (memoId, content) => {
     const memos = get().memos.map((m) =>
       m.id === memoId ? { ...m, content, updatedAt: Date.now() } : m
+    );
+    set({ memos });
+    saveMemos(memos);
+  },
+
+  updateMemoFormatting: (memoId, formatting) => {
+    const memos = get().memos.map((m) =>
+      m.id === memoId ? { ...m, formatting, updatedAt: Date.now() } : m
     );
     set({ memos });
     saveMemos(memos);

@@ -27,11 +27,31 @@ export interface Block {
   data: BlockData;
 }
 
+export type TextStyle = "body" | "heading" | "title";
+export type TextAlign = "left" | "center" | "right";
+export type ListType = "bullet" | "checkbox";
+
+export interface ContentFormatting {
+  style: TextStyle;
+  align: TextAlign;
+  bold: boolean;
+  underline: boolean;
+  listType?: ListType;
+}
+
+export const DEFAULT_FORMATTING: ContentFormatting = {
+  style: "body",
+  align: "left",
+  bold: false,
+  underline: false,
+};
+
 export interface Memo {
   id: string;
   title: string;
-  content: string; // メイン本文テキスト
-  blocks: Block[]; // 譜面・コードブロックのみ
+  content: string;
+  formatting: ContentFormatting;
+  blocks: Block[];
   createdAt: number;
   updatedAt: number;
 }
