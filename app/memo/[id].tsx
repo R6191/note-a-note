@@ -3,13 +3,11 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   InputAccessoryView,
   KeyboardAvoidingView,
-  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TextInputKeyPressEventData,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -39,12 +37,12 @@ export default function MemoScreen() {
     updateBlock,
     deleteBlock,
     insertBlockAfter,
-    backspaceDeletePrev,
   } = useStore();
 
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
+
 
   const memo = memos.find((m) => m.id === id);
 
@@ -86,28 +84,6 @@ export default function MemoScreen() {
     }, 100);
   };
 
-  const handleBackspace = (
-    blockId: string,
-    e: NativeSyntheticEvent<TextInputKeyPressEventData>
-  ) => {
-    if (e.nativeEvent.key !== "Backspace") return;
-    const block = memo.blocks.find((b) => b.id === blockId);
-    if (!block || block.data.type !== "text" || block.data.content !== "") return;
-
-    const result = backspaceDeletePrev(memo.id, blockId);
-    if (!result) return;
-
-    const { focusBlockId, focusOffset } = result;
-    setTimeout(() => {
-      const ref = inputRefs.current.get(focusBlockId);
-      ref?.focus();
-      // カーソルを結合点に移動
-      if (focusOffset > 0) {
-        ref?.setNativeProps({ selection: { start: focusOffset, end: focusOffset } });
-      }
-    }, 50);
-  };
-
   const handleUpdateFmt = (blockId: string, patch: Partial<ContentFormatting>) => {
     const block = memo.blocks.find((b) => b.id === blockId);
     if (!block || block.data.type !== "text") return;
@@ -138,7 +114,6 @@ export default function MemoScreen() {
           value={data.content ?? ""}
           onChangeText={(t) => updateTextContent(memo.id, blockId, t)}
           onFocus={() => setFocusedBlockId(blockId)}
-          onKeyPress={(e) => handleBackspace(blockId, e)}
           placeholder="テキストを入力..."
           placeholderTextColor="#444"
           multiline

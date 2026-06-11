@@ -25,8 +25,6 @@ interface StoreState {
   updateTextFormatting: (memoId: string, blockId: string, formatting: ContentFormatting) => void;
   // 挿入（afterBlockId の後ろに新ブロック＋空テキストブロックを挿入）
   insertBlockAfter: (memoId: string, afterBlockId: string, data: BlockData) => { newBlockId: string; newTextBlockId: string };
-  // バックスペース削除：前ブロックがテキストなら結合、そうでなければ前ブロックを削除して自分は残す
-  backspaceDeletePrev: (memoId: string, blockId: string) => { focusBlockId: string; focusOffset: number } | null;
   reorderBlocks: (memoId: string, blocks: Block[]) => void;
 }
 
@@ -183,47 +181,6 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ memos });
     saveMemos(memos);
     return { newBlockId, newTextBlockId };
-  },
-
-  backspaceDeletePrev: (memoId, blockId) => {
-    const memo = get().memos.find((m) => m.id === memoId);
-    if (!memo) return null;
-
-    const idx = memo.blocks.findIndex((b) => b.id === blockId);
-    if (idx <= 0) return null;
-
-    const prevBlock = memo.blocks[idx - 1];
-    const curBlock = memo.blocks[idx];
-    if (curBlock.data.type !== "text") return null;
-
-    let newBlocks: Block[];
-    let focusBlockId: string;
-    let focusOffset = 0;
-
-    if (prevBlock.data.type === "text") {
-      // 前のテキストブロックと結合
-      const mergedContent = prevBlock.data.content + curBlock.data.content;
-      focusOffset = prevBlock.data.content.length;
-      focusBlockId = prevBlock.id;
-      newBlocks = memo.blocks
-        .map((b) =>
-          b.id === prevBlock.id
-            ? { ...b, data: { ...b.data, content: mergedContent } }
-            : b
-        )
-        .filter((b) => b.id !== blockId);
-    } else {
-      // 前の譜面/コードブロックを削除、自分は残す
-      focusBlockId = blockId;
-      newBlocks = memo.blocks.filter((b) => b.id !== prevBlock.id);
-    }
-
-    const memos = get().memos.map((m) =>
-      m.id === memoId ? { ...m, blocks: newBlocks, updatedAt: Date.now() } : m
-    );
-    set({ memos });
-    saveMemos(memos);
-    return { focusBlockId, focusOffset };
   },
 
   reorderBlocks: (memoId, blocks) => {
