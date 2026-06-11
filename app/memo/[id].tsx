@@ -37,13 +37,13 @@ export default function MemoScreen() {
     updateBlock,
     deleteBlock,
     insertBlockAfter,
+    insertTextBlockAfter,
   } = useStore();
 
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
-  const focusedBlockIdRef = useRef<string | null>(null); // blurしても値を保持するref
+  const focusedBlockIdRef = useRef<string | null>(null);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
-
 
   const memo = memos.find((m) => m.id === id);
 
@@ -65,12 +65,11 @@ export default function MemoScreen() {
       ? focusedBlock.data.formatting
       : DEFAULT_FORMATTING;
 
+  // 譜面/コードをフォーカス中テキストブロックの直後に挿入
   const handleInsertBlock = (type: "piano_roll" | "chord") => {
-    // refから取得（blur後もIDを保持）、なければ最後のテキストブロック
-    const lastTextBlock = [...memo.blocks].reverse().find((b) => b.data.type === "text");
     const afterId =
       focusedBlockIdRef.current ??
-      lastTextBlock?.id ??
+      [...memo.blocks].reverse().find((b) => b.data.type === "text")?.id ??
       memo.blocks[memo.blocks.length - 1]?.id;
     if (!afterId) return;
 
@@ -79,15 +78,15 @@ export default function MemoScreen() {
         ? { type: "piano_roll", notes: [], bpm: 120 }
         : { type: "chord", root: "C", chordType: "major" };
 
-    const { newTextBlockId } = insertBlockAfter(memo.id, afterId, data);
+    insertBlockAfter(memo.id, afterId, data);
+  };
 
-    // 挿入直後にrefを更新（onFocus頼みにしない）
-    focusedBlockIdRef.current = newTextBlockId;
-
-    // 新しいテキストブロックにフォーカス
+  // 「＋ テキストを追加」タップ：直後に空テキストを挿入してフォーカス
+  const handleAddTextAfter = (afterBlockId: string) => {
+    const newId = insertTextBlockAfter(memo.id, afterBlockId);
     setTimeout(() => {
-      inputRefs.current.get(newTextBlockId)?.focus();
-    }, 100);
+      inputRefs.current.get(newId)?.focus();
+    }, 80);
   };
 
   const handleUpdateFmt = (blockId: string, patch: Partial<ContentFormatting>) => {
@@ -96,7 +95,7 @@ export default function MemoScreen() {
     updateTextFormatting(memo.id, blockId, { ...block.data.formatting, ...patch });
   };
 
-  const renderBlock = (block: Block) => {
+  const renderBlock = (block: Block, index: number) => {
     const { id: blockId, data } = block;
 
     if (data.type === "text") {
@@ -134,24 +133,37 @@ export default function MemoScreen() {
     }
 
     if (data.type === "piano_roll") {
+      // 直後にテキストブロックがあれば「＋」不要
+      const nextBlock = memo.blocks[index + 1];
+      const showAddText = !nextBlock || nextBlock.data.type !== "text";
       return (
-        <PianoRollBlock
-          key={blockId}
-          data={data}
-          onChange={(d) => updateBlock(memo.id, blockId, d)}
-          onDelete={() => deleteBlock(memo.id, blockId)}
-        />
+        <View key={blockId}>
+          <PianoRollBlock
+            data={data}
+            onChange={(d) => updateBlock(memo.id, blockId, d)}
+            onDelete={() => deleteBlock(memo.id, blockId)}
+          />
+          {showAddText && (
+            <AddTextZone onPress={() => handleAddTextAfter(blockId)} />
+          )}
+        </View>
       );
     }
 
     if (data.type === "chord") {
+      const nextBlock = memo.blocks[index + 1];
+      const showAddText = !nextBlock || nextBlock.data.type !== "text";
       return (
-        <ChordBlock
-          key={blockId}
-          data={data}
-          onChange={(d) => updateBlock(memo.id, blockId, d)}
-          onDelete={() => deleteBlock(memo.id, blockId)}
-        />
+        <View key={blockId}>
+          <ChordBlock
+            data={data}
+            onChange={(d) => updateBlock(memo.id, blockId, d)}
+            onDelete={() => deleteBlock(memo.id, blockId)}
+          />
+          {showAddText && (
+            <AddTextZone onPress={() => handleAddTextAfter(blockId)} />
+          )}
+        </View>
       );
     }
 
@@ -187,7 +199,7 @@ export default function MemoScreen() {
           placeholder="タイトル..."
           placeholderTextColor="#555"
         />
-        {memo.blocks.map(renderBlock)}
+        {memo.blocks.map((block, index) => renderBlock(block, index))}
       </ScrollView>
 
       {Platform.OS === "ios" ? (
@@ -201,11 +213,17 @@ export default function MemoScreen() {
   );
 }
 
+// ── テキスト追加ゾーン ─────────────────────────────────
+function AddTextZone({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.addTextZone}>
+      <Text style={styles.addTextZoneLabel}>＋ テキストを追加</Text>
+    </TouchableOpacity>
+  );
+}
+
 // ── フォーマットバー ──────────────────────────────────
-function FormatBar({
-  fmt,
-  onChange,
-}: {
+function FormatBar({ fmt, onChange }: {
   fmt: ContentFormatting;
   onChange: (p: Partial<ContentFormatting>) => void;
 }) {
@@ -222,8 +240,8 @@ function FormatBar({
       <FmtBtn label="↔" active={fmt.align === "center"} onPress={() => onChange({ align: "center" as TextAlign })} />
       <FmtBtn label="→" active={fmt.align === "right"} onPress={() => onChange({ align: "right" as TextAlign })} />
       <Sep />
-      <FmtBtn label="•" active={fmt.listType === "bullet"} onPress={() => onChange({ listType: fmt.listType === "bullet" ? undefined : ("bullet" as ListType) })} />
-      <FmtBtn label="☑" active={fmt.listType === "checkbox"} onPress={() => onChange({ listType: fmt.listType === "checkbox" ? undefined : ("checkbox" as ListType) })} />
+      <FmtBtn label="•" active={fmt.listType === "bullet"} onPress={() => onChange({ listType: fmt.listType === "bullet" ? undefined : "bullet" as ListType })} />
+      <FmtBtn label="☑" active={fmt.listType === "checkbox"} onPress={() => onChange({ listType: fmt.listType === "checkbox" ? undefined : "checkbox" as ListType })} />
     </View>
   );
 }
@@ -295,6 +313,15 @@ const styles = StyleSheet.create({
   fmtHeading: { fontSize: 19, fontWeight: "600" as const },
   fmtBold: { fontWeight: "bold" as const },
   fmtUnderline: { textDecorationLine: "underline" as const },
+  addTextZone: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginVertical: 2,
+  },
+  addTextZoneLabel: {
+    color: "#5566aa",
+    fontSize: 13,
+  },
   formatBar: {
     flexDirection: "row",
     flexWrap: "wrap",
