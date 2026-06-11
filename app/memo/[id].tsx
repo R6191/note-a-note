@@ -69,8 +69,8 @@ export default function MemoScreen() {
   const handleInsertBlock = (type: "piano_roll" | "chord") => {
     const afterId =
       focusedBlockId ??
-      memo.blocks.filter((b) => b.data.type === "text").at(-1)?.id ??
-      memo.blocks.at(-1)?.id;
+      memo.blocks.findLast((b) => b.data.type === "text")?.id ??
+      memo.blocks[memo.blocks.length - 1]?.id;
     if (!afterId) return;
 
     const data: BlockData =
@@ -118,7 +118,7 @@ export default function MemoScreen() {
     const { id: blockId, data } = block;
 
     if (data.type === "text") {
-      const fmt = data.formatting;
+      const fmt = data.formatting ?? DEFAULT_FORMATTING;
       const contentStyle = [
         styles.textInput,
         fmt.style === "title" && styles.fmtTitle,
@@ -135,7 +135,7 @@ export default function MemoScreen() {
             else inputRefs.current.delete(blockId);
           }}
           style={contentStyle}
-          value={data.content}
+          value={data.content ?? ""}
           onChangeText={(t) => updateTextContent(memo.id, blockId, t)}
           onFocus={() => setFocusedBlockId(blockId)}
           onKeyPress={(e) => handleBackspace(blockId, e)}

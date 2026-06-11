@@ -35,15 +35,42 @@ export const useStore = create<StoreState>((set, get) => ({
   loaded: false,
 
   hydrate: async () => {
-    const memos = await loadMemos();
-    // 旧データ互換: content/formatting フィールドをブロックに移行
-    const migrated = memos.map((m: any) => {
+    const rawMemos = await loadMemos();
+    const migrated = (rawMemos as any[]).map((m: any) => {
+      let blocks: Block[] = m.blocks ?? [];
+
+      // 旧v1: memo.content + memo.formatting → TextBlockに変換
       if (m.content !== undefined) {
         const textBlock = makeTextBlock(m.content ?? "");
-        const { content, formatting, ...rest } = m;
-        return { ...rest, blocks: [textBlock, ...(m.blocks ?? [])] };
+        blocks = [textBlock, ...blocks.filter((b: any) => b.data?.type !== "text")];
       }
-      return m;
+
+      // 旧v1: spans形式のTextBlockをcontentベースに変換
+      blocks = blocks.map((b: any) => {
+        if (b.data?.type === "text" && b.data.spans !== undefined) {
+          const content = (b.data.spans as any[]).map((s: any) => s.text ?? "").join("");
+          return {
+            ...b,
+            data: {
+              type: "text",
+              content,
+              formatting: { ...DEFAULT_FORMATTING },
+            },
+          };
+        }
+        // contentフィールドがないTextBlockを補完
+        if (b.data?.type === "text" && b.data.content === undefined) {
+          return { ...b, data: { ...b.data, content: "", formatting: b.data.formatting ?? { ...DEFAULT_FORMATTING } } };
+        }
+        return b;
+      });
+
+      // テキストブロックが1つもなければ先頭に追加
+      const hasText = blocks.some((b: any) => b.data?.type === "text");
+      if (!hasText) blocks = [makeTextBlock(), ...blocks];
+
+      const { content, formatting, ...rest } = m;
+      return { ...rest, blocks };
     });
     set({ memos: migrated, loaded: true });
   },
