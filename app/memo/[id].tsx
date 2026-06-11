@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   InputAccessoryView,
   KeyboardAvoidingView,
@@ -42,6 +42,7 @@ export default function MemoScreen() {
 
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const focusedBlockIdRef = useRef<string | null>(null);
+  const pendingFocusRef = useRef<string | null>(null); // 次の描画後にフォーカスするID
   const [showFormatBar, setShowFormatBar] = useState(false);
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
 
@@ -50,6 +51,19 @@ export default function MemoScreen() {
   useLayoutEffect(() => {
     if (memo) navigation.setOptions({ title: memo.title || "無題" });
   }, [memo?.title]);
+
+  // ブロック更新後（再描画完了後）に pending フォーカスを実行
+  useEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const id = pendingFocusRef.current;
+    const ref = inputRefs.current.get(id);
+    if (ref) {
+      ref.focus();
+      focusedBlockIdRef.current = id;
+      setFocusedBlockId(id);
+      pendingFocusRef.current = null;
+    }
+  }, [memo?.blocks]);
 
   if (!memo) {
     return (
@@ -79,14 +93,13 @@ export default function MemoScreen() {
         : { type: "chord", root: "C", chordType: "major" };
 
     insertBlockAfter(memo.id, afterId, data);
+    // フォーカスはそのまま維持（挿入後も同じテキストブロックにカーソルを残す）
   };
 
-  // 「＋ テキストを追加」タップ：直後に空テキストを挿入してフォーカス
+  // 「＋ テキストを追加」タップ：直後に空テキストを挿入→再描画後にフォーカス
   const handleAddTextAfter = (afterBlockId: string) => {
     const newId = insertTextBlockAfter(memo.id, afterBlockId);
-    setTimeout(() => {
-      inputRefs.current.get(newId)?.focus();
-    }, 80);
+    pendingFocusRef.current = newId;
   };
 
   const handleUpdateFmt = (blockId: string, patch: Partial<ContentFormatting>) => {
