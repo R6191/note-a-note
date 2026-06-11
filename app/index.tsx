@@ -29,13 +29,10 @@ export default function MemoListScreen() {
   const filtered = memos.filter((m) => {
     if (!query) return true;
     const q = query.toLowerCase();
-    if (m.title.toLowerCase().includes(q)) return true;
-    return m.blocks.some((b) => {
-      if (b.data.type === "text") {
-        return b.data.spans.some((s) => s.text.toLowerCase().includes(q));
-      }
-      return false;
-    });
+    return (
+      m.title.toLowerCase().includes(q) ||
+      m.content.toLowerCase().includes(q)
+    );
   });
 
   const handleCreate = () => {
@@ -59,6 +56,11 @@ export default function MemoListScreen() {
       <Text style={styles.itemTitle} numberOfLines={1}>
         {item.title || "無題"}
       </Text>
+      {!!item.content && (
+        <Text style={styles.itemPreview} numberOfLines={2}>
+          {item.content}
+        </Text>
+      )}
       <Text style={styles.itemDate}>{formatDate(item.updatedAt)}</Text>
     </TouchableOpacity>
   );
@@ -109,7 +111,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   itemTitle: { color: "#e0e0ff", fontSize: 16, fontWeight: "600" },
-  itemDate: { color: "#8888aa", fontSize: 12, marginTop: 4 },
+  itemPreview: { color: "#9999bb", fontSize: 13, marginTop: 4, lineHeight: 18 },
+  itemDate: { color: "#8888aa", fontSize: 12, marginTop: 6 },
   empty: { color: "#8888aa", textAlign: "center", fontSize: 15, lineHeight: 24 },
   emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   fab: {

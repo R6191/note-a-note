@@ -10,14 +10,13 @@ import {
 } from "react-native";
 import ChordBlock from "../../src/components/blocks/ChordBlock";
 import PianoRollBlock from "../../src/components/blocks/PianoRollBlock";
-import TextBlock from "../../src/components/blocks/TextBlock";
 import { useStore } from "../../src/store/useStore";
 import { Block, BlockData } from "../../src/types";
 
 export default function MemoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
-  const { memos, updateMemoTitle, addBlock, updateBlock, deleteBlock } = useStore();
+  const { memos, updateMemoTitle, updateMemoContent, addBlock, updateBlock, deleteBlock } = useStore();
   const memo = memos.find((m) => m.id === id);
 
   useLayoutEffect(() => {
@@ -44,16 +43,6 @@ export default function MemoScreen() {
 
   const renderBlock = (block: Block) => {
     const { id: blockId, data } = block;
-    if (data.type === "text") {
-      return (
-        <TextBlock
-          key={blockId}
-          data={data}
-          onChange={(d) => updateBlock(memo.id, blockId, d)}
-          onDelete={() => deleteBlock(memo.id, blockId)}
-        />
-      );
-    }
     if (data.type === "piano_roll") {
       return (
         <PianoRollBlock
@@ -87,6 +76,15 @@ export default function MemoScreen() {
           placeholder="タイトル..."
           placeholderTextColor="#555"
         />
+        <TextInput
+          style={styles.contentInput}
+          value={memo.content}
+          onChangeText={(t) => updateMemoContent(memo.id, t)}
+          placeholder="メモを入力..."
+          placeholderTextColor="#555"
+          multiline
+          textAlignVertical="top"
+        />
         {memo.blocks.map(renderBlock)}
         <BlockAddRow onAdd={handleAddBlock} />
       </ScrollView>
@@ -116,16 +114,24 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "bold",
     color: "#e0e0ff",
-    marginBottom: 12,
+    marginBottom: 10,
     paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#3a3a5e",
+  },
+  contentInput: {
+    fontSize: 15,
+    color: "#e0e0ff",
+    lineHeight: 24,
+    minHeight: 120,
+    paddingVertical: 8,
+    marginBottom: 12,
   },
   addRow: {
     flexDirection: "row",
     justifyContent: "center",
     gap: 12,
-    marginTop: 20,
+    marginTop: 16,
     padding: 12,
     backgroundColor: "#2a2a4e",
     borderRadius: 12,
@@ -135,8 +141,8 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     backgroundColor: "#3a3a5e",
-    minWidth: 72,
+    minWidth: 120,
   },
   addBtnIcon: { fontSize: 22, color: "#9988cc" },
-  addBtnLabel: { fontSize: 11, color: "#aaa", marginTop: 4 },
+  addBtnLabel: { fontSize: 12, color: "#aaa", marginTop: 4 },
 });

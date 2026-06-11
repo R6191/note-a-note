@@ -9,6 +9,7 @@ interface StoreState {
   hydrate: () => Promise<void>;
   createMemo: () => Memo;
   updateMemoTitle: (memoId: string, title: string) => void;
+  updateMemoContent: (memoId: string, content: string) => void;
   deleteMemo: (memoId: string) => void;
   addBlock: (memoId: string, data: BlockData) => Block;
   updateBlock: (memoId: string, blockId: string, data: BlockData) => void;
@@ -26,14 +27,11 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   createMemo: () => {
-    const defaultTextBlock: Block = {
-      id: generateId(),
-      data: { type: "text", style: "body", align: "left", spans: [{ text: "" }] },
-    };
     const memo: Memo = {
       id: generateId(),
       title: "",
-      blocks: [defaultTextBlock],
+      content: "",
+      blocks: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -46,6 +44,14 @@ export const useStore = create<StoreState>((set, get) => ({
   updateMemoTitle: (memoId, title) => {
     const memos = get().memos.map((m) =>
       m.id === memoId ? { ...m, title, updatedAt: Date.now() } : m
+    );
+    set({ memos });
+    saveMemos(memos);
+  },
+
+  updateMemoContent: (memoId, content) => {
+    const memos = get().memos.map((m) =>
+      m.id === memoId ? { ...m, content, updatedAt: Date.now() } : m
     );
     set({ memos });
     saveMemos(memos);

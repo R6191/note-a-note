@@ -1,23 +1,3 @@
-export type BlockType = "text" | "piano_roll" | "chord";
-
-export type TextStyle = "title" | "heading" | "body";
-export type TextAlign = "left" | "center" | "right";
-
-export interface TextSpan {
-  text: string;
-  bold?: boolean;
-  underline?: boolean;
-}
-
-export interface TextBlockData {
-  type: "text";
-  style: TextStyle;
-  align: TextAlign;
-  spans: TextSpan[];
-  listType?: "bullet" | "checkbox";
-  checked?: boolean;
-}
-
 export interface Note {
   id: string;
   pitch: number; // MIDI note number (C3=48, C5=72)
@@ -40,7 +20,7 @@ export interface ChordBlockData {
   chordType: ChordType;
 }
 
-export type BlockData = TextBlockData | PianoRollBlockData | ChordBlockData;
+export type BlockData = PianoRollBlockData | ChordBlockData;
 
 export interface Block {
   id: string;
@@ -50,7 +30,8 @@ export interface Block {
 export interface Memo {
   id: string;
   title: string;
-  blocks: Block[];
+  content: string; // メイン本文テキスト
+  blocks: Block[]; // 譜面・コードブロックのみ
   createdAt: number;
   updatedAt: number;
 }
