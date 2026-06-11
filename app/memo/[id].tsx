@@ -40,6 +40,7 @@ export default function MemoScreen() {
   } = useStore();
 
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
+  const focusedBlockIdRef = useRef<string | null>(null); // blurしても値を保持するref
   const [showFormatBar, setShowFormatBar] = useState(false);
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
 
@@ -65,9 +66,11 @@ export default function MemoScreen() {
       : DEFAULT_FORMATTING;
 
   const handleInsertBlock = (type: "piano_roll" | "chord") => {
+    // refから取得（blur後もIDを保持）、なければ最後のテキストブロック
+    const lastTextBlock = [...memo.blocks].reverse().find((b) => b.data.type === "text");
     const afterId =
-      focusedBlockId ??
-      memo.blocks.findLast((b) => b.data.type === "text")?.id ??
+      focusedBlockIdRef.current ??
+      lastTextBlock?.id ??
       memo.blocks[memo.blocks.length - 1]?.id;
     if (!afterId) return;
 
@@ -113,7 +116,10 @@ export default function MemoScreen() {
           style={contentStyle}
           value={data.content ?? ""}
           onChangeText={(t) => updateTextContent(memo.id, blockId, t)}
-          onFocus={() => setFocusedBlockId(blockId)}
+          onFocus={() => {
+            setFocusedBlockId(blockId);
+            focusedBlockIdRef.current = blockId;
+          }}
           placeholder="テキストを入力..."
           placeholderTextColor="#444"
           multiline
